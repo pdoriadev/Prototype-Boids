@@ -127,13 +127,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0887ab9104907f44eaa5c7bbbb61b2d8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  NearbyBoids: []
-  defaultMoveSpeed: 1
+  nearbyBoids: []
+  defaultMoveSpeed: 30
+  defaultRotSpeed: 0.5
+  rotationSpeed: 0.5
   fleeSpeed: 1
   wanderSpeed: 1
   avoidDistance: 2
-  avoidSpeed: 1
+  avoidSpeed: 1.3
+  avoidRotSpeed: 1
+  timeBetweenAvoids: 0.05
+  TimeBtwnSameBoidAvoid: 2
   alignDistance: 5
+  timeBtwnAligns: 0.2
   approachDistance: 10
   approachSpeed: 1
 --- !u!58 &6663414329970912269
@@ -165,7 +171,7 @@ Rigidbody2D:
   m_UseFullKinematicContacts: 0
   m_UseAutoMass: 0
   m_Mass: 10
-  m_LinearDrag: 0.5
+  m_LinearDrag: 5
   m_AngularDrag: 0.05
   m_GravityScale: 0
   m_Material: {fileID: 0}

@@ -26,7 +26,7 @@ public enum BoidBehavior
 public class Boid : MonoBehaviour
 {
 #region VARS -----------------
-    public List<Rigidbody2D> BoidRbs = new List<Rigidbody2D>();
+    public List<Rigidbody2D> nearbyBoids = new List<Rigidbody2D>();
     private List<Predator> NearbyPredators = new List<Predator>();
     private BallBoy NearbyPlayer = null;
     private Collider2D myColl = null;
@@ -41,26 +41,37 @@ public class Boid : MonoBehaviour
     private float WanderingResetTime = 3f;    
     private float AvoidTimer = 0f;
     private float SameBoidAvoidTimer = 0f;
+    private int LastAvoidedBoid;
+    private float AlignTimer = 0f;
+
     private float RotAngle = 0;
-    private int lastAvoidedBoid;
 
 
     // stores index for closest body (i.e. boid, predator) in its respective list
     private int ClosestBodyIndex = default;
     private float ClosestBodyDist = default;
 
+    [Header("Defaults")]
     public float defaultMoveSpeed = default;
+    public float defaultRotSpeed = default;
+    [Header("Current Values")]
     public float rotationSpeed = default;
+    [Header("Flee")]
     public float fleeSpeed = default;
+    [Header("Wander")]
     public float wanderSpeed = default;
+    [Header("Avoid")]
     public float avoidDistance = default;
     public float avoidSpeed = default, avoidRotSpeed = default;
+    public float timeBetweenAvoids = 0.2f;
+    public float TimeBtwnSameBoidAvoid = 1.5f;
+    [Header("Align")]
     public float alignDistance = default;
+    public float timeBtwnAligns = default;
+    [Header("Approach")]
     public float approachDistance = default;
     public float approachSpeed = default;
 
-    public float timeBetweenAvoids = 0.2f;
-    public float TimeBtwnSameBoidAvoid = 1.5f;
 
 
 #endregion
@@ -117,8 +128,8 @@ public class Boid : MonoBehaviour
                 break;
             case BoidBehavior.APPROACH:
                  ModdedSpeed = defaultMoveSpeed * approachSpeed;
-                 MoveDir = new Vector2(BoidRbs[ClosestBodyIndex].transform.position.x - transform.position.x,
-                    BoidRbs[ClosestBodyIndex].transform.position.y - transform.position.y);
+                 MoveDir = new Vector2(nearbyBoids[ClosestBodyIndex].transform.position.x - transform.position.x,
+                    nearbyBoids[ClosestBodyIndex].transform.position.y - transform.position.y);
 
                 print("approaching");
                 // create v
@@ -137,24 +148,26 @@ public class Boid : MonoBehaviour
                 AvoidTimer = AvoidTimer > timeBetweenAvoids 
                     ? 0 
                     : AvoidTimer += Time.deltaTime;
-                SameBoidAvoidTimer = SameBoidAvoidTimer > TimeBtwnSameBoidAvoid || lastAvoidedBoid != ClosestBodyIndex
+                SameBoidAvoidTimer = SameBoidAvoidTimer > TimeBtwnSameBoidAvoid || LastAvoidedBoid != ClosestBodyIndex
                     ? 0 
-                    : SameBoidAvoidTimer +=Time.deltaTime;
-                print (gameObject.name + "sameboid avid: " + SameBoidAvoidTimer);
-                print(gameObject.name + "last avoided boid and closest body index: " 
-                    + lastAvoidedBoid + " " + ClosestBodyIndex);   
+                    : SameBoidAvoidTimer += Time.deltaTime;
 
                 print("rotAngle: " + RotAngle);
 
-                lastAvoidedBoid = ClosestBodyIndex;
+                LastAvoidedBoid = ClosestBodyIndex;
 
                 // #TODO: MAKE BOIDS AVOID WALLS
 
                 break;
             case BoidBehavior.ALIGN:
+                print ("Align");
+
                 ModdedSpeed = defaultMoveSpeed;
-                // align rotation
-                RotAngle = 0;
+                rotationSpeed = defaultRotSpeed;
+                if (ShouldCalcAlignAngle())
+                    RotAngle = CalcAlignAngle();
+
+                AlignTimer = AlignTimer > timeBetweenAvoids ? 0 : AlignTimer += Time.deltaTime;
 
                 break;
             
@@ -172,13 +185,16 @@ public class Boid : MonoBehaviour
             ? 0 : AvoidTimer;
         if (SameBoidAvoidTimer > TimeBtwnSameBoidAvoid) 
             SameBoidAvoidTimer = 0;
+        AlignTimer = (LastFrameBehavior == BoidBehavior.ALIGN && Behavior != BoidBehavior.ALIGN)
+            ? 0 : AlignTimer;
+        
         
     }
 
 #region BEHAVIOR_CHECKS -------------
     void AssignSoloBoidBehavior()
     {
-        Behavior = BoidRbs.Count == 0 ? BoidBehavior.WANDER : Behavior;      
+        Behavior = nearbyBoids.Count == 0 ? BoidBehavior.WANDER : Behavior;      
         Behavior = NearbyPlayer != null ? BoidBehavior.FOLLOWPLAYER: Behavior;
         Behavior = NearbyPredators.Count > 0 ? BoidBehavior.FLEE : Behavior;  
     }
@@ -186,15 +202,15 @@ public class Boid : MonoBehaviour
     // check distance to nearest boid
     // too close --> avoid: fly away from nearest boid
     // close --> align: fly along with nearest boid
-    // close enough to see another boid --> approach: fly towards nearest boid
+    // just close enough to see another boid --> approach: fly towards nearest boid
     void AssignFlockBoidBehavior()
     {
         ClosestBodyIndex = 0;
         ClosestBodyDist = 1000000000;
         // finds nearest boid, it's index, and distance from this boid
-        for (int i = 0; i < BoidRbs.Count; i++)
+        for (int i = 0; i < nearbyBoids.Count; i++)
         {
-            float dist = Vector2.Distance(transform.position, BoidRbs[i].transform.position);
+            float dist = Vector2.Distance(transform.position, nearbyBoids[i].transform.position);
             if (ClosestBodyDist > dist)
             {
                 ClosestBodyDist = dist;
@@ -211,42 +227,82 @@ public class Boid : MonoBehaviour
 
     private bool ShouldCalcAvoidAngle()
     {
-        bool shouldCalc = false;
+        bool ShouldCalc = false;
         // if avoid timer isn't up, don't want to calculate new turn. 
         // if new boid, want to calculate new turn.
         // if same boid, just wanna keep turning.
-        shouldCalc = AvoidTimer > timeBetweenAvoids ? true : false ;
-        shouldCalc = SameBoidAvoidTimer == 0 ? true : false;
+        ShouldCalc = AvoidTimer > timeBetweenAvoids ? true : false ;
+        ShouldCalc = SameBoidAvoidTimer == 0 ? true : false;
 
-        return shouldCalc;        
+        return ShouldCalc;        
     }
     // find degrees to rotate away from nearest boid   
     private float CalcAvoidAngle()
     {
-        print("Avoiding this boid: " + BoidRbs[ClosestBodyIndex].gameObject.name);
+        print(gameObject.name + " avoiding : " + nearbyBoids[ClosestBodyIndex].gameObject.name);
 
         Vector3 myDir = MyRb.velocity.normalized;
-        Vector3 meToThem = new Vector3(BoidRbs[ClosestBodyIndex].position.x - MyRb.position.x,
-                                        BoidRbs[ClosestBodyIndex].position.y - MyRb.position.y,
+        Vector3 meToThem = new Vector3(nearbyBoids[ClosestBodyIndex].position.x - MyRb.position.x,
+                                        nearbyBoids[ClosestBodyIndex].position.y - MyRb.position.y,
                                         0)
                                         .normalized;
 
         float dot = (myDir.x * meToThem.x) + (myDir.y * meToThem.y);
-        print (gameObject.name + " dot product: "  + dot);
-        double angl = Mathf.Acos(dot) * Mathf.Rad2Deg;
-        print (gameObject.name + " angl from dot: " + angl);
+        float angl = Mathf.Acos(dot) * Mathf.Rad2Deg;
 
         // check which side other boid is on. If positive, other boid is to right of me
-        float dotSide = (transform.right.x * meToThem.x) + (transform.right.y * meToThem.y);
-        dotSide = dotSide > 0 ? 1 : dotSide < 0 ? -1 : 0;
-        print(gameObject.name + " dotRightSide: " + dotSide);
+        float dotRightSide = (transform.right.normalized.x * meToThem.x) + (transform.right.normalized.y * meToThem.y);
+        dotRightSide = dotRightSide > 0 ? 1 
+            : dotRightSide < 0 ? -1 
+            : 0;
 
-        return (float)angl * dotSide;
+        print(gameObject.name + "final angle = " + angl * dotRightSide + 
+            ": angl = " + angl  + " dotRightSide: " + dotRightSide);
+
+        return angl * dotRightSide;
+    }
+
+    private bool ShouldCalcAlignAngle()
+    {
+        bool ShouldCalc = false;
+
+        ShouldCalc = AlignTimer == 0 
+            ? true 
+            : false;
+
+        // is already aligned with boid
+        ShouldCalc = Vector3.Angle(MyRb.velocity.normalized ,nearbyBoids[ClosestBodyIndex].velocity.normalized) > 1 
+            ? true
+            : false;
+
+
+        return ShouldCalc;
     }
 
     private float CalcAlignAngle()
     {
-        return 0;
+        print(gameObject.name + " aligning with : " + nearbyBoids[ClosestBodyIndex].gameObject.name);
+
+        Vector3 myVel = MyRb.velocity.normalized;
+        Vector3 theirVel = nearbyBoids[ClosestBodyIndex].velocity.normalized;
+        Vector3 theirPos = nearbyBoids[ClosestBodyIndex].position;
+        Vector3 meToThem = new Vector3(theirPos.x - transform.position.x, 
+                                        theirPos.y - transform.position.y,
+                                        0).normalized;
+
+        float dotForward = (myVel.x * theirVel.x) + (myVel.y * theirVel.y);
+        float angl = Mathf.Acos(dotForward) * Mathf.Rad2Deg;
+
+        float dotRightSide = (transform.right.normalized.x * meToThem.x) + (transform.right.normalized.y * meToThem.y);
+        dotRightSide = dotRightSide > 0 ? 1 
+            : dotRightSide < 0 ? -1 
+            : 0;
+        
+        print(gameObject.name + "final angle = " + angl * -dotRightSide + 
+            ": angl = " + angl  + ", dotRightSide = " + dotRightSide 
+            + ", dotForward = " + dotForward);
+
+        return angl * -dotRightSide ;
     }
 
 #endregion
@@ -257,7 +313,7 @@ public class Boid : MonoBehaviour
     {
         if (collider.GetComponent<Boid>())
         {
-            BoidRbs.Add(collider.GetComponent<Rigidbody2D>());
+            nearbyBoids.Add(collider.GetComponent<Rigidbody2D>());
         }
         else if (collider.GetComponent<BallBoy>())
         {
@@ -273,7 +329,7 @@ public class Boid : MonoBehaviour
     {
         if (collider.GetComponent<Boid>())
         {
-            BoidRbs.Remove(collider.GetComponent<Rigidbody2D>());
+            nearbyBoids.Remove(collider.GetComponent<Rigidbody2D>());
         }
         else if(collider.GetComponent<BallBoy>())
         {
