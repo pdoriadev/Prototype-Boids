@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+[SelectionBase]
 public class NewBoid : MonoBehaviour
 {
 
@@ -19,7 +20,7 @@ public class NewBoid : MonoBehaviour
         }
     }
 
-    private Collider2D MyTrig;
+    private Collider2D MyTrig, ClosestObstacle = null;
     private Rigidbody2D MyRb;
     private Rigidbody2D ClosestBoidRb;
     private NewBoid ClosestBoid;
@@ -27,19 +28,24 @@ public class NewBoid : MonoBehaviour
     private float MaxAngleCutOff = 7.5f;
 
     [SerializeField]
+    private SpriteRenderer Sr;
+    [SerializeField]
     private List<NewBoid> NearBoids = new List<NewBoid>();
     [SerializeField]
-    private bool IsAlpha = default; 
+    private List<Collider2D> NearObstacles = new List<Collider2D>();
+
     [SerializeField]
     private float moveSpeed = default;
     [SerializeField]
     public float rotSpeed = default;
     [SerializeField]
-    public float alignDistance = default, avoidDistance = default;
+    public float alignDistance = default, avoidDistance = default, approachDistance = default;
 
     [Header("Generated on Start()")]
     [SerializeField]
     private float AngleCutoff = default;
+    [SerializeField]
+    private bool IsAlpha = false; 
 
 
     void Awake()
@@ -48,27 +54,44 @@ public class NewBoid : MonoBehaviour
         if (!MyRb) Debug.LogError(gameObject + " has no Rigidbody2D.");
         MyTrig = GetComponent<Collider2D>();
         if (!MyTrig) Debug.LogError(gameObject + " has no Collider2D");
+        Sr = GetComponentInChildren<SpriteRenderer>();
+        if (!Sr) Debug.LogError(gameObject + " has no sprite renderer among child game objects");
     }
 
     void Start()
     {
+        IsAlpha = Random.Range(0f, 1f) < 0.05f ? true : false;
+
+        if (IsAlpha)
+        {
+            Color cy = Color.cyan;
+            Sr.color = cy;
+        }
+        else 
+        {
+            Color orange = Color.Lerp(Color.red, Color.yellow, 0.5f);
+            orange = new Color (orange.r, orange.g, orange.b, 1);
+            Sr.color = orange;
+        }
+
         AngleCutoff = Random.Range(0, MaxAngleCutOff);
     }
 
+
     void FixedUpdate()
     {
-        // Align
+        
+        // Boid Dist Checks
         NewBoid alphaBoid = null;
         float closestAlphaDist = float.MaxValue;
-
-        float closestDist = float.MaxValue;
+        float closeBoidDist = float.MaxValue;
         // Check for near boids
         for (int i = 0; i < NearBoids.Count; i++)
         {
             float dist = (NearBoids[i].transform.position - transform.position).sqrMagnitude;
-            if (dist < closestDist)
+            if (dist < closeBoidDist)
             {
-                closestDist = dist;
+                closeBoidDist = dist;
                 ClosestBoid = NearBoids[i];
             }
             ClosestBoidRb = ClosestBoid != null ? ClosestBoid.GetRigidbody2D() : null;
@@ -80,43 +103,102 @@ public class NewBoid : MonoBehaviour
                 closestAlphaDist = dist < closestAlphaDist ? dist : closestAlphaDist;
             }     
         }
-        
-        if (ClosestBoid)
+
+        // Obstacle Dist Checks
+        Vector2 myPos = new Vector2 (transform.position.x, transform.position.y);
+        Vector2 closestObsPoint = Vector2.zero;
+        float closestObstacleDist = float.MaxValue;
+        for(int i = 0; i < NearObstacles.Count; i++)
         {
-            if (ShouldIAvoid(closestDist))
+            Vector2 point = NearObstacles[i].ClosestPoint(transform.position);
+            float dist = (point - myPos).sqrMagnitude;
+            if (dist < closestObstacleDist)
             {
-                HandleAvoiding();
+                closestObstacleDist = dist;
+                closestObsPoint = point;
+                ClosestObstacle = NearObstacles[i];
             }
-            else if (ShouldIAlign(closestDist))
+        }
+
+        
+        if (ShouldAvoidObstacle(closestObstacleDist))
+        {
+            HandleAvoidObstacle(closestObsPoint);
+        }
+        else if (ClosestBoid && closeBoidDist < closestObstacleDist)
+        {
+            if (ShouldIAvoid(closeBoidDist))
+            {
+                HandleAvoidingBoid();
+            }
+            else if (ShouldIAlign(closeBoidDist))
             {
                 HandleAligning();
             }   
-
+            else if (ShouldIApproach(closeBoidDist))
+            {
+                HandleApproaching();
+            }
         }
 
         MyRb.AddForce(transform.up * moveSpeed * Time.fixedDeltaTime);
     }
 
-    private void HandleAvoiding()
+    private void HandleAvoidingBoid()
     {
         Vector2 myDir = transform.up;
-        Vector2 meToThem = new Vector2(ClosestBoid.transform.position.x - transform.position.x, ClosestBoid.transform.position.y - transform.position.y);
+        Vector2 meToThem = new Vector2(ClosestBoid.transform.position.x - transform.position.x, 
+                                        ClosestBoid.transform.position.y - transform.position.y);
         
         float angl = Vector2.SignedAngle(meToThem, myDir);
 
         float step = angl * rotSpeed * Time.deltaTime;
 
-        if (Mathf.Abs(angl) > Mathf.Abs(AngleCutoff))
+        
+        if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
         {
-            // if next step will exceed target angle + cutoff
-            if (Mathf.Abs(AngleCutoff) + Mathf.Abs(step) > Mathf.Abs(angl))
-            {
-                MyRb.rotation += angl + AngleCutoff;
-            }
-            else 
-            {
-                MyRb.rotation += step;
-            }
+            MyRb.rotation += angl;
+        }
+        else
+        {
+            MyRb.rotation += step;
+        }
+
+        // if (Mathf.Abs(angl) > Mathf.Abs(AngleCutoff))
+        // {
+        //     // if next step will exceed target angle + cutoff
+        //     if (Mathf.Abs(AngleCutoff) + Mathf.Abs(step) > Mathf.Abs(angl))
+        //     {
+        //         MyRb.rotation += angl + AngleCutoff;
+        //     }
+        //     else 
+        //     {
+        //         MyRb.rotation += step;
+        //     }
+        // }
+    }
+
+    private void HandleAvoidObstacle(Vector2 point)
+    {
+        Vector2 myPos = transform.position;
+        Vector2 myDir = transform.up;
+        Vector2 meToThem = (point - myPos).normalized;
+        float dot = (myDir.x * meToThem.x ) + (myDir.y * meToThem.y);
+
+        float angl = Vector2.SignedAngle(meToThem, myDir);
+        float step = angl * rotSpeed * moveSpeed * 0.005f * Time.fixedDeltaTime;
+
+        print(gameObject.name + " AVOID OBSTACLE - step = " + step);
+
+      
+
+        if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
+        {
+            MyRb.rotation += angl;
+        }
+        else
+        {
+            MyRb.rotation += step;
         }
     }
 
@@ -139,19 +221,40 @@ public class NewBoid : MonoBehaviour
             MyRb.rotation += step;
         }
 
-        if (Mathf.Abs(angl) > Mathf.Abs(AngleCutoff))
-        {
-            // if next step will exceed target angle + cutoff
-            if (Mathf.Abs(AngleCutoff) + Mathf.Abs(step) > Mathf.Abs(angl))
-            {
-                MyRb.rotation += angl + AngleCutoff;
-            }
-            else 
-            {
-                MyRb.rotation += step;
-            }
-        }
+        // if (Mathf.Abs(angl) > Mathf.Abs(AngleCutoff))
+        // {
+        //     // if next step will exceed target angle + cutoff
+        //     if (Mathf.Abs(AngleCutoff) + Mathf.Abs(step) > Mathf.Abs(angl))
+        //     {
+        //         MyRb.rotation += angl + AngleCutoff;
+        //     }
+        //     else 
+        //     {
+        //         MyRb.rotation += step;
+        //     }
+        // }
         
+    }
+
+    private void HandleApproaching()
+    {
+        Vector2 myDir = transform.up;
+        Vector2 meToThem = new Vector2(ClosestBoid.transform.position.x - transform.position.x, 
+                                        ClosestBoid.transform.position.y - transform.position.y);
+
+        float angl = Vector2.SignedAngle (myDir, meToThem);
+
+        float step = angl * rotSpeed * Time.fixedDeltaTime;
+
+        if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
+        {
+            MyRb.rotation += angl;
+        }
+        else
+        {
+            MyRb.rotation += step;
+        }
+
     }
 
     private void OnTriggerEnter2D (Collider2D coll)
@@ -161,12 +264,20 @@ public class NewBoid : MonoBehaviour
         {
             NearBoids.Add(b);
         }
+        else if (coll.gameObject.layer == 8)
+        {
+            NearObstacles.Add(coll.gameObject.GetComponent<Collider2D>());
+        }
             
     }
     private void OnTriggerExit2D(Collider2D coll)
     {
         NewBoid b = coll.GetComponent<NewBoid>();
         NearBoids.Remove(b);
+        if (!b && coll.gameObject.layer == 8)
+        {
+            NearObstacles.Remove(coll.GetComponent<Collider2D>());
+        }
     }
 
     private bool ShouldIAvoid(float closestDist)
@@ -191,6 +302,30 @@ public class NewBoid : MonoBehaviour
         return shouldIAlign;
     }
 
+    private bool ShouldIApproach(float closestDist)
+    {
+        bool shouldIApproach = false;
+
+        shouldIApproach = closestDist < approachDistance * approachDistance ? true : false;
+
+        return shouldIApproach;
+    }
+
+    private bool ShouldAvoidObstacle(float obsDist)
+    {
+        bool shouldAvoid = true;
+
+        // avoid if I'm going towards the obstacle
+        // Vector2 myDir = transform.up;
+        // Vector2 myPos = transform.position;
+        // Vector2 meToThem = (point - myPos).normalized;
+
+        shouldAvoid = shouldAvoid &&
+                    obsDist < approachDistance * approachDistance 
+                    ? true : false;
+
+        return shouldAvoid;
+    }
     // Getter for other boids to get the state of boids around them. 
     public BoidData GetBoidData()
     {
