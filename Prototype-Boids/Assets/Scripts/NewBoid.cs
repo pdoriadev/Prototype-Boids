@@ -20,20 +20,28 @@ public class NewBoid : MonoBehaviour
         }
     }
 
-    private Collider2D MyTrig, ClosestObstacle = null;
+    private CircleCollider2D MyTrig;
+    private Collider2D ClosestObstacle = null;
     private Rigidbody2D MyRb;
     private Rigidbody2D ClosestBoidRb;
     private NewBoid ClosestBoid;
     private Rigidbody2D BoidImAligningWithRb;
     private float MaxAngleCutOff = 7.5f;
 
+    [Header("See child game objects")]
     [SerializeField]
-    private SpriteRenderer Sr;
+    private TriggerCheck TrigChecker = default;
+    [SerializeField]
+    private SpriteRenderer Sr = default;
+
+    [Space]
+    
     [SerializeField]
     private List<NewBoid> NearBoids = new List<NewBoid>();
     [SerializeField]
     private List<Collider2D> NearObstacles = new List<Collider2D>();
 
+    [Space]
     [SerializeField]
     private float moveSpeed = default;
     [SerializeField]
@@ -52,10 +60,12 @@ public class NewBoid : MonoBehaviour
     {
         MyRb = GetComponent<Rigidbody2D>();
         if (!MyRb) Debug.LogError(gameObject + " has no Rigidbody2D.");
-        MyTrig = GetComponent<Collider2D>();
-        if (!MyTrig) Debug.LogError(gameObject + " has no Collider2D");
+        if (!TrigChecker) Debug.LogError(gameObject + " has no Collider2D");
         Sr = GetComponentInChildren<SpriteRenderer>();
         if (!Sr) Debug.LogError(gameObject + " has no sprite renderer among child game objects");
+
+        TrigChecker.EnteredEvent += TriggerEnter2DCheck;
+        TrigChecker.ExitedEvent += TriggerExit2DCheck;
     }
 
     void Start()
@@ -75,6 +85,11 @@ public class NewBoid : MonoBehaviour
         }
 
         AngleCutoff = Random.Range(0, MaxAngleCutOff);
+    }
+    void Destroy()
+    {
+        TrigChecker.EnteredEvent -= TriggerEnter2DCheck;
+        TrigChecker.ExitedEvent -= TriggerExit2DCheck;
     }
 
 
@@ -121,11 +136,11 @@ public class NewBoid : MonoBehaviour
         }
 
         
-        if (ShouldAvoidObstacle(closestObstacleDist))
+        if (NearObstacles.Count > 0 && ShouldAvoidObstacle(closestObstacleDist, closestObsPoint))
         {
             HandleAvoidObstacle(closestObsPoint);
         }
-        else if (ClosestBoid && closeBoidDist < closestObstacleDist)
+        else if (ClosestBoid)
         {
             if (ShouldIAvoid(closeBoidDist))
             {
@@ -183,23 +198,44 @@ public class NewBoid : MonoBehaviour
         Vector2 myPos = transform.position;
         Vector2 myDir = transform.up;
         Vector2 meToThem = (point - myPos).normalized;
+        
         float dot = (myDir.x * meToThem.x ) + (myDir.y * meToThem.y);
+        float cutoff = Random.Range(-0.8f, -0.95f);
 
-        float angl = Vector2.SignedAngle(meToThem, myDir);
-        float step = angl * rotSpeed * moveSpeed * 0.005f * Time.fixedDeltaTime;
-
-        print(gameObject.name + " AVOID OBSTACLE - step = " + step);
-
-      
-
-        if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
+        if (dot > cutoff)
         {
-            MyRb.rotation += angl;
+            float angl = Vector2.SignedAngle(meToThem, myDir);
+
+            float step = angl * rotSpeed * moveSpeed * 0.02f * Time.fixedDeltaTime;
+
+            if (angl > 0)
+            {
+                //MyRb.MoveRotation ((MyRb.rotation + 1) * Time.deltaTime);
+                if (step > angl)
+                    step = angl;
+                MyRb.rotation = MyRb.rotation + step;
+            }
+            else if (angl < 0)
+            {
+                if (-step < angl)
+                    step = -angl;
+                MyRb.rotation = MyRb.rotation + step;
+            }   
+
+            Debug.DrawLine(myPos, point, Color.green, 0.24f);
+
         }
-        else
-        {
-            MyRb.rotation += step;
-        }
+
+        
+
+        // if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
+        // {
+        //     MyRb.rotation += angl;
+        // }
+        // else
+        // {
+        //     MyRb.rotation += step;
+        // }
     }
 
     private void HandleAligning()
@@ -210,7 +246,7 @@ public class NewBoid : MonoBehaviour
 
         float angl = Vector2.SignedAngle(myDir, theirDir);
         
-        float step = angl * rotSpeed * Time.fixedDeltaTime;
+        float step = angl * rotSpeed * moveSpeed * 0.02f * Time.fixedDeltaTime;
 
         if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
         {
@@ -257,29 +293,8 @@ public class NewBoid : MonoBehaviour
 
     }
 
-    private void OnTriggerEnter2D (Collider2D coll)
-    {
-        NewBoid b = coll.GetComponent<NewBoid>();
-        if (b && !NearBoids.Contains(b))
-        {
-            NearBoids.Add(b);
-        }
-        else if (coll.gameObject.layer == 8)
-        {
-            NearObstacles.Add(coll.gameObject.GetComponent<Collider2D>());
-        }
-            
-    }
-    private void OnTriggerExit2D(Collider2D coll)
-    {
-        NewBoid b = coll.GetComponent<NewBoid>();
-        NearBoids.Remove(b);
-        if (!b && coll.gameObject.layer == 8)
-        {
-            NearObstacles.Remove(coll.GetComponent<Collider2D>());
-        }
-    }
-
+#region BOOL METHODS
+    
     private bool ShouldIAvoid(float closestDist)
     {
         bool shouldIAvoid = false;
@@ -311,21 +326,47 @@ public class NewBoid : MonoBehaviour
         return shouldIApproach;
     }
 
-    private bool ShouldAvoidObstacle(float obsDist)
+    private bool ShouldAvoidObstacle(float obsDist, Vector2 point)
     {
         bool shouldAvoid = true;
 
-        // avoid if I'm going towards the obstacle
-        // Vector2 myDir = transform.up;
-        // Vector2 myPos = transform.position;
-        // Vector2 meToThem = (point - myPos).normalized;
+        Vector2 myDir = transform.up;
+        Vector2 myPos = transform.position;
+        Vector2 meToThem = (point - myPos).normalized;
 
         shouldAvoid = shouldAvoid &&
-                    obsDist < approachDistance * approachDistance 
+                    obsDist < approachDistance - (avoidDistance * avoidDistance)
                     ? true : false;
 
         return shouldAvoid;
     }
+
+#endregion
+
+    private void TriggerEnter2DCheck(Collider2D coll)
+    {
+        NewBoid b = coll.GetComponent<NewBoid>();
+        if (b && !NearBoids.Contains(b))
+        {
+            NearBoids.Add(b);
+        }
+        else if (coll.gameObject.layer == 8)
+        {
+            NearObstacles.Add(coll.gameObject.GetComponent<Collider2D>());
+        }
+    }
+
+    private void TriggerExit2DCheck(Collider2D coll)
+    {
+        NewBoid b = coll.GetComponent<NewBoid>();
+        NearBoids.Remove(b);
+        if (!b && coll.gameObject.layer == 8)
+        {
+            NearObstacles.Remove(coll.GetComponent<Collider2D>());
+        }
+    }
+
+
     // Getter for other boids to get the state of boids around them. 
     public BoidData GetBoidData()
     {
