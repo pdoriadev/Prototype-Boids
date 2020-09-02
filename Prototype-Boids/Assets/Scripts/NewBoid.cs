@@ -15,7 +15,7 @@ public class NewBoid : MonoBehaviour
         public BoidData(NewBoid b)
         {
             boid = b;
-            aligningWithBoidDat = b.BoidImAligningWithRb ? b.BoidImAligningWithRb.GetComponent<NewBoid>() : null;
+            aligningWithBoidDat = b.BoidImAligningWith ? b.BoidImAligningWith.GetComponent<NewBoid>() : null;
             isAlphaDat = b.IsAlpha;
         }
     }
@@ -25,7 +25,7 @@ public class NewBoid : MonoBehaviour
     private Rigidbody2D MyRb;
     private Rigidbody2D ClosestBoidRb;
     private NewBoid ClosestBoid;
-    private Rigidbody2D BoidImAligningWithRb;
+    private NewBoid BoidImAligningWith;
     private float MaxAngleCutOff = 7.5f;
 
     [Header("See child game objects")]
@@ -99,14 +99,14 @@ public class NewBoid : MonoBehaviour
         // Boid Dist Checks
         NewBoid alphaBoid = null;
         float closestAlphaDist = float.MaxValue;
-        float closeBoidDist = float.MaxValue;
+        float closestBoidDist = float.MaxValue;
         // Check for near boids
         for (int i = 0; i < NearBoids.Count; i++)
         {
             float dist = (NearBoids[i].transform.position - transform.position).sqrMagnitude;
-            if (dist < closeBoidDist)
+            if (dist < closestBoidDist)
             {
-                closeBoidDist = dist;
+                closestBoidDist = dist;
                 ClosestBoid = NearBoids[i];
             }
             ClosestBoidRb = ClosestBoid != null ? ClosestBoid.GetRigidbody2D() : null;
@@ -116,7 +116,7 @@ public class NewBoid : MonoBehaviour
             {
                 alphaBoid = ClosestBoid;
                 closestAlphaDist = dist < closestAlphaDist ? dist : closestAlphaDist;
-            }     
+            }
         }
 
         // Obstacle Dist Checks
@@ -135,22 +135,28 @@ public class NewBoid : MonoBehaviour
             }
         }
 
-        
+        // avoiding obstacles takes priority
         if (NearObstacles.Count > 0 && ShouldAvoidObstacle(closestObstacleDist, closestObsPoint))
         {
             HandleAvoidObstacle(closestObsPoint);
         }
         else if (ClosestBoid)
         {
-            if (ShouldIAvoid(closeBoidDist))
+            if (ShouldIAvoid(closestBoidDist))
             {
                 HandleAvoidingBoid();
             }
-            else if (ShouldIAlign(closeBoidDist))
+            else if (alphaBoid && ShouldIAlign(closestAlphaDist, alphaBoid))
             {
+                BoidImAligningWith = alphaBoid;
+                HandleAligning();   
+            }
+            else if (ShouldIAlign(closestBoidDist, ClosestBoid))
+            {
+                BoidImAligningWith = ClosestBoid;
                 HandleAligning();
-            }   
-            else if (ShouldIApproach(closeBoidDist))
+            }
+            else if (ShouldIApproach(closestBoidDist))
             {
                 HandleApproaching();
             }
@@ -159,6 +165,37 @@ public class NewBoid : MonoBehaviour
         MyRb.AddForce(transform.up * moveSpeed * Time.fixedDeltaTime);
     }
 
+#region Handle Behavior Methods
+    private void HandleAvoidObstacle(Vector2 point)
+    {
+        Vector2 myPos = transform.position;
+        Vector2 myDir = transform.up;
+        Vector2 meToThem = (point - myPos).normalized;
+        
+        float dot = (myDir.x * meToThem.x ) + (myDir.y * meToThem.y);
+        float cutoff = Random.Range(-0.8f, -0.95f);
+
+        if (dot > cutoff)
+        {
+            float angl = Vector2.SignedAngle(meToThem, myDir);
+
+            float step = angl * rotSpeed * moveSpeed * 0.02f * Time.fixedDeltaTime;
+
+            if (angl > 0)
+            {
+                if (step > angl)
+                    step = angl;
+                MyRb.rotation = MyRb.rotation + step;
+            }
+            else if (angl < 0)
+            {
+                if (-step < angl)
+                    step = -angl;
+                MyRb.rotation = MyRb.rotation + step;
+            }   
+
+        }
+    }
     private void HandleAvoidingBoid()
     {
         Vector2 myDir = transform.up;
@@ -193,59 +230,13 @@ public class NewBoid : MonoBehaviour
         // }
     }
 
-    private void HandleAvoidObstacle(Vector2 point)
-    {
-        Vector2 myPos = transform.position;
-        Vector2 myDir = transform.up;
-        Vector2 meToThem = (point - myPos).normalized;
-        
-        float dot = (myDir.x * meToThem.x ) + (myDir.y * meToThem.y);
-        float cutoff = Random.Range(-0.8f, -0.95f);
-
-        if (dot > cutoff)
-        {
-            float angl = Vector2.SignedAngle(meToThem, myDir);
-
-            float step = angl * rotSpeed * moveSpeed * 0.02f * Time.fixedDeltaTime;
-
-            if (angl > 0)
-            {
-                //MyRb.MoveRotation ((MyRb.rotation + 1) * Time.deltaTime);
-                if (step > angl)
-                    step = angl;
-                MyRb.rotation = MyRb.rotation + step;
-            }
-            else if (angl < 0)
-            {
-                if (-step < angl)
-                    step = -angl;
-                MyRb.rotation = MyRb.rotation + step;
-            }   
-
-            Debug.DrawLine(myPos, point, Color.green, 0.24f);
-
-        }
-
-        
-
-        // if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
-        // {
-        //     MyRb.rotation += angl;
-        // }
-        // else
-        // {
-        //     MyRb.rotation += step;
-        // }
-    }
 
     private void HandleAligning()
     {
-        BoidImAligningWithRb = ClosestBoidRb;
         Vector2 myDir = transform.up;
-        Vector2 theirDir = ClosestBoidRb.transform.up;
+        Vector2 theirDir = BoidImAligningWith.transform.up;
 
-        float angl = Vector2.SignedAngle(myDir, theirDir);
-        
+        float angl = Vector2.SignedAngle(myDir, theirDir); 
         float step = angl * rotSpeed * moveSpeed * 0.02f * Time.fixedDeltaTime;
 
         if ((step > 0 && step + AngleCutoff > angl) || (step < 0 && step - AngleCutoff < angl ))
@@ -255,21 +246,7 @@ public class NewBoid : MonoBehaviour
         else
         {
             MyRb.rotation += step;
-        }
-
-        // if (Mathf.Abs(angl) > Mathf.Abs(AngleCutoff))
-        // {
-        //     // if next step will exceed target angle + cutoff
-        //     if (Mathf.Abs(AngleCutoff) + Mathf.Abs(step) > Mathf.Abs(angl))
-        //     {
-        //         MyRb.rotation += angl + AngleCutoff;
-        //     }
-        //     else 
-        //     {
-        //         MyRb.rotation += step;
-        //     }
-        // }
-        
+        } 
     }
 
     private void HandleApproaching()
@@ -292,40 +269,10 @@ public class NewBoid : MonoBehaviour
         }
 
     }
+#endregion
 
 #region BOOL METHODS
     
-    private bool ShouldIAvoid(float closestDist)
-    {
-        bool shouldIAvoid = false;
-
-        shouldIAvoid = closestDist < avoidDistance * avoidDistance;
-
-        return shouldIAvoid;
-    }
-
-    private bool ShouldIAlign(float closestDist)
-    {
-        bool shouldIAlign = false;
-
-        BoidData bD = ClosestBoid.GetBoidData();
-        
-        shouldIAlign = (!bD.aligningWithBoidDat == MyRb || bD.isAlphaDat ? true : false);
-        shouldIAlign = IsAlpha ? false : true;
-        shouldIAlign = closestDist < alignDistance * alignDistance;
-
-        return shouldIAlign;
-    }
-
-    private bool ShouldIApproach(float closestDist)
-    {
-        bool shouldIApproach = false;
-
-        shouldIApproach = closestDist < approachDistance * approachDistance ? true : false;
-
-        return shouldIApproach;
-    }
-
     private bool ShouldAvoidObstacle(float obsDist, Vector2 point)
     {
         bool shouldAvoid = true;
@@ -341,6 +288,37 @@ public class NewBoid : MonoBehaviour
         return shouldAvoid;
     }
 
+    private bool ShouldIAvoid(float closestDist)
+    {
+        bool shouldIAvoid = false;
+
+        shouldIAvoid = closestDist < avoidDistance * avoidDistance;
+
+        return shouldIAvoid;
+    }
+
+    private bool ShouldIAlign(float dist, NewBoid boidAligningWith)
+    {
+        bool shouldIAlign = false;
+
+        BoidData bD = boidAligningWith.GetBoidData();
+        
+        // if it's not already aligning with me, I want to align. If it's an alpha, I want to align. 
+        shouldIAlign = (!bD.aligningWithBoidDat == MyRb || bD.isAlphaDat ? true : false);
+        shouldIAlign = dist < alignDistance * alignDistance;
+        shouldIAlign = IsAlpha ? false : true;
+
+        return shouldIAlign;
+    }
+
+    private bool ShouldIApproach(float closestDist)
+    {
+        bool shouldIApproach = false;
+
+        shouldIApproach = closestDist < approachDistance * approachDistance ? true : false;
+
+        return shouldIApproach;
+    }
 #endregion
 
     private void TriggerEnter2DCheck(Collider2D coll)

@@ -71,10 +71,10 @@ TrailRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Time: 0.3
+  m_Time: 0.2
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 1
+    widthMultiplier: 0.5
     widthCurve:
       serializedVersion: 2
       m_Curve:
@@ -137,7 +137,7 @@ TrailRenderer:
       m_Mode: 0
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
-    numCornerVertices: 12
+    numCornerVertices: 36
     numCapVertices: 0
     alignment: 0
     textureMode: 0
@@ -282,9 +282,9 @@ MonoBehaviour:
   NearObstacles: []
   moveSpeed: 800
   rotSpeed: 1
-  alignDistance: 8
-  avoidDistance: 1
-  approachDistance: 12
+  alignDistance: 10
+  avoidDistance: 1.5
+  approachDistance: 14
   AngleCutoff: 0
   IsAlpha: 0
 --- !u!50 &3274276080986568344
