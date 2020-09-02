@@ -282,8 +282,8 @@ MonoBehaviour:
   NearObstacles: []
   moveSpeed: 800
   rotSpeed: 1
-  alignDistance: 6
-  avoidDistance: 2
+  alignDistance: 8
+  avoidDistance: 1
   approachDistance: 12
   AngleCutoff: 0
   IsAlpha: 0

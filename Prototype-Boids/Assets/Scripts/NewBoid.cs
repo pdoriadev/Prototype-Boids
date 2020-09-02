@@ -35,7 +35,7 @@ public class NewBoid : MonoBehaviour
     private SpriteRenderer Sr = default;
 
     [Space]
-    
+
     [SerializeField]
     private List<NewBoid> NearBoids = new List<NewBoid>();
     [SerializeField]
@@ -335,7 +335,7 @@ public class NewBoid : MonoBehaviour
         Vector2 meToThem = (point - myPos).normalized;
 
         shouldAvoid = shouldAvoid &&
-                    obsDist < approachDistance - (avoidDistance * avoidDistance)
+                    obsDist < moveSpeed * 0.01f
                     ? true : false;
 
         return shouldAvoid;
