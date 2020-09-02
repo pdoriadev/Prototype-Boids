@@ -5,7 +5,6 @@ using UnityEngine;
 [SelectionBase]
 public class NewBoid : MonoBehaviour
 {
-
     public struct BoidData
     {
         public NewBoid boid;
@@ -23,7 +22,7 @@ public class NewBoid : MonoBehaviour
     private CircleCollider2D MyTrig;
     private Collider2D ClosestObstacle = null;
     private Rigidbody2D MyRb;
-    private Rigidbody2D ClosestBoidRb;
+    private BallBoy SuperAlpha;
     private NewBoid ClosestBoid;
     private NewBoid BoidImAligningWith;
     private float MaxAngleCutOff = 7.5f;
@@ -95,7 +94,6 @@ public class NewBoid : MonoBehaviour
 
     void FixedUpdate()
     {
-        
         // Boid Dist Checks
         NewBoid alphaBoid = null;
         float closestAlphaDist = float.MaxValue;
@@ -109,7 +107,6 @@ public class NewBoid : MonoBehaviour
                 closestBoidDist = dist;
                 ClosestBoid = NearBoids[i];
             }
-            ClosestBoidRb = ClosestBoid != null ? ClosestBoid.GetRigidbody2D() : null;
 
             BoidData bD = new BoidData(ClosestBoid);
             if (bD.isAlphaDat)
@@ -140,13 +137,17 @@ public class NewBoid : MonoBehaviour
         {
             HandleAvoidObstacle(closestObsPoint);
         }
-        else if (ClosestBoid)
+        else if (ClosestBoid && ShouldIAvoid(closestBoidDist))
         {
-            if (ShouldIAvoid(closestBoidDist))
-            {
-                HandleAvoidingBoid();
-            }
-            else if (alphaBoid && ShouldIAlign(closestAlphaDist, alphaBoid))
+            HandleAvoidingBoid();
+        }
+        else if (SuperAlpha)
+        {
+            HandleFollowSuperAlpha();
+        }
+        else if (ClosestBoid)
+        {   
+            if (alphaBoid && ShouldIAlign(closestAlphaDist, alphaBoid))
             {
                 BoidImAligningWith = alphaBoid;
                 HandleAligning();   
@@ -215,19 +216,27 @@ public class NewBoid : MonoBehaviour
         {
             MyRb.rotation += step;
         }
+    }
 
-        // if (Mathf.Abs(angl) > Mathf.Abs(AngleCutoff))
-        // {
-        //     // if next step will exceed target angle + cutoff
-        //     if (Mathf.Abs(AngleCutoff) + Mathf.Abs(step) > Mathf.Abs(angl))
-        //     {
-        //         MyRb.rotation += angl + AngleCutoff;
-        //     }
-        //     else 
-        //     {
-        //         MyRb.rotation += step;
-        //     }
-        // }
+    private void HandleFollowSuperAlpha()
+    {
+        Vector2 myDir = transform.up;
+        Vector2 theirDir = SuperAlpha.transform.up;
+
+        float angl = Vector2.SignedAngle(myDir, theirDir);
+        float step = angl * rotSpeed * moveSpeed * 0.02f * Time.fixedDeltaTime;
+
+        if (angl > 0)
+        {
+            if (step + AngleCutoff > angl)
+                step = angl;
+        }
+        else if (angl < 0)
+        {
+            if (-step - AngleCutoff < angl)
+                step = -angl;
+        }
+        MyRb.rotation += step;
     }
 
 
@@ -332,6 +341,10 @@ public class NewBoid : MonoBehaviour
         {
             NearObstacles.Add(coll.gameObject.GetComponent<Collider2D>());
         }
+        
+        BallBoy p = coll.GetComponent<BallBoy>();
+        SuperAlpha = p ? p : SuperAlpha;  
+
     }
 
     private void TriggerExit2DCheck(Collider2D coll)
@@ -342,6 +355,9 @@ public class NewBoid : MonoBehaviour
         {
             NearObstacles.Remove(coll.GetComponent<Collider2D>());
         }
+        
+        BallBoy p = coll.GetComponent<BallBoy>();
+        SuperAlpha = p ? null : SuperAlpha;  
     }
 
 

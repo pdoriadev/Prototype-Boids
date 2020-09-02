@@ -4,8 +4,11 @@ using UnityEngine;
 // Runs around. Controlled by player
 public class BallBoy : MonoBehaviour
 {
-    public List<Ball> ballFollowers = new List<Ball>();
-    public float moveForce;
+    [SerializeField]
+    private float MoveForce = default;
+    [SerializeField]
+    private float RotSpeed = default;
+
 
     Rigidbody2D rb;
     Vector2 moveDir;
@@ -27,39 +30,26 @@ public class BallBoy : MonoBehaviour
 
     private void FixedUpdate()
     {
-        rb.AddForce(moveDir * moveForce);
-    }
-
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        Ball ball = collision.gameObject.GetComponent<Ball>();
-        if (ball && !ballFollowers.Contains(ball))
+        rb.AddForce(moveDir * MoveForce);
+        
+        float angl = Vector2.SignedAngle(transform.up, moveDir);
+        float step = angl * RotSpeed * Time.fixedDeltaTime;
+        
+        if (angl > 0)
         {
-            ballFollowers.Add(ball);
-            ball.AssignMyBallBoy(this);
-            print("new ballboy");
+            if (step > angl)
+            {
+                step = angl;
+            }
+        }
+        else if (angl < 0)
+        {
+            if (-step < angl)
+            {
+                step = -angl;
+            }
         }
         
-    }
-
-    public int GetBallIndex(Ball ball)
-    {
-        int index = 0;
-        if (ballFollowers.Contains(ball))
-        {
-            index = ballFollowers.IndexOf(ball);
-        }
-        else Debug.LogError("Lil ball isn't in this ballboy's list. Will return false index.");
-
-        return index;
-    }
-
-    public Ball GetBall(int index)
-    {
-        Ball b = ballFollowers[index];
-        if (!b)
-            Debug.LogError("Error! No ball here!");
-
-        return b;
+        rb.rotation += step;
     }
 }

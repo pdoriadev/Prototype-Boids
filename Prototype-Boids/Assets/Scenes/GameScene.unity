@@ -8319,11 +8319,6 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 4910912735604830040, guid: c7e57d0e94b0abe49b581aaddf005637,
-        type: 3}
-      propertyPath: m_Layer
-      value: 8
-      objectReference: {fileID: 0}
     - target: {fileID: 4910912735604830042, guid: c7e57d0e94b0abe49b581aaddf005637,
         type: 3}
       propertyPath: orthographic size
@@ -8337,22 +8332,32 @@ PrefabInstance:
     - target: {fileID: 4910912736184987242, guid: c7e57d0e94b0abe49b581aaddf005637,
         type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4910912736184987242, guid: c7e57d0e94b0abe49b581aaddf005637,
         type: 3}
       propertyPath: m_Layer
       value: 8
       objectReference: {fileID: 0}
+    - target: {fileID: 4910912736184987244, guid: c7e57d0e94b0abe49b581aaddf005637,
+        type: 3}
+      propertyPath: m_LinearDrag
+      value: 5
+      objectReference: {fileID: 0}
+    - target: {fileID: 4910912736184987246, guid: c7e57d0e94b0abe49b581aaddf005637,
+        type: 3}
+      propertyPath: moveForce
+      value: 50
+      objectReference: {fileID: 0}
     - target: {fileID: 4910912736184987247, guid: c7e57d0e94b0abe49b581aaddf005637,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 7.21
+      value: -1.2
       objectReference: {fileID: 0}
     - target: {fileID: 4910912736184987247, guid: c7e57d0e94b0abe49b581aaddf005637,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 8.03
+      value: -4.94
       objectReference: {fileID: 0}
     - target: {fileID: 4910912736184987247, guid: c7e57d0e94b0abe49b581aaddf005637,
         type: 3}
@@ -8398,11 +8403,6 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4910912736927243425, guid: c7e57d0e94b0abe49b581aaddf005637,
-        type: 3}
-      propertyPath: m_Layer
-      value: 8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: c7e57d0e94b0abe49b581aaddf005637, type: 3}
